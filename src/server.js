@@ -6,9 +6,19 @@ const routes = require('./routes');
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
+  .split(',')
+  .map((o) => o.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error(`Origen no permitido por CORS: ${origin}`));
+    },
     credentials: true,
   })
 );
@@ -22,6 +32,6 @@ app.use((err, _req, res, _next) => {
   res.status(400).json({ error: err.message || 'Error en la solicitud.' });
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 Servidor Arena Canta Callao corriendo en http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Servidor Arena Canta Callao corriendo en http://0.0.0.0:${PORT}`);
 });
