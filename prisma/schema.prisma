@@ -1,0 +1,103 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  CLIENTE
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique
+  passwordHash String   @map("password_hash")
+  fullName     String   @map("full_name")
+  role         UserRole @default(CLIENTE)
+  isActive     Boolean  @default(true) @map("is_active")
+  orders       Order[]
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model Product {
+  id                  Int         @id @default(autoincrement())
+  sku                 String      @unique
+  name                String
+  description         String?
+  category            String      @default("Abarrotes")
+  unit                String      @default("unidad")
+  basePrice           Decimal     @map("base_price") @db.Decimal(10, 2)
+  stock               Int         @default(0)
+  imageUrl            String?     @map("image_url")
+  emoji               String?     @default("🛒")
+  isActive            Boolean     @default(true) @map("is_active")
+  // Reglas de precios dinámicos individuales (sobresalen de la regla global si overrideGlobalPrice = true)
+  overrideGlobalPrice Boolean     @default(false) @map("override_global_price")
+  individualMarkupPct Decimal     @default(0) @map("individual_markup_pct") @db.Decimal(6, 2)
+  orderItems          OrderItem[]
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  @@index([category])
+  @@index([isActive])
+  @@map("products")
+}
+
+model PricingConfig {
+  id                 Int      @id @default(1)
+  globalMarkupActive Boolean  @default(false) @map("global_markup_active")
+  globalMarkupPct    Decimal  @default(10.00) @map("global_markup_pct") @db.Decimal(6, 2)
+  label              String   @default("Ajuste Dinámico General")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("pricing_config")
+}
+
+model Order {
+  id            Int         @id @default(autoincrement())
+  orderNumber   String      @unique @map("order_number")
+  customerName  String      @default("Cliente Kiosco") @map("customer_name")
+  totalAmount   Decimal     @map("total_amount") @db.Decimal(10, 2)
+  paymentMethod String      @default("QR_MOCK") @map("payment_method")
+  status        OrderStatus @default(COMPLETED)
+  userId        Int?        @map("user_id")
+  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  items         OrderItem[]
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                Int     @id @default(autoincrement())
+  orderId           Int     @map("order_id")
+  order             Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId         Int     @map("product_id")
+  product           Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+  productName       String  @map("product_name")
+  quantity          Int
+  basePriceSnapshot Decimal @map("base_price_snapshot") @db.Decimal(10, 2)
+  unitPriceApplied  Decimal @map("unit_price_applied") @db.Decimal(10, 2)
+  pricingRuleUsed   String  @default("BASE") @map("pricing_rule_used") // BASE | GLOBAL | INDIVIDUAL
+  subtotal          Decimal @db.Decimal(10, 2)
+
+  @@index([orderId])
+  @@index([productId])
+  @@map("order_items")
+}
